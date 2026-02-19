@@ -44,7 +44,7 @@
       });
       const data = await res.json();
       if (data.token) {
-        localStorage.setItem('adminToken', data.token);
+        sessionStorage.setItem('adminToken', data.token);
         window.location.href = '/admin-dashboard.html';
       } else {
         errorEl.textContent = 'Invalid username or password.';

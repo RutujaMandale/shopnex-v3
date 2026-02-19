@@ -38,11 +38,11 @@
 <footer><p>&copy; 2025 ShopNex. All rights reserved.</p></footer>
 
 <script>
-  const token = localStorage.getItem('adminToken');
+  const token = sessionStorage.getItem('adminToken');
   if (!token) { window.location.href = '/admin.html'; }
 
   document.getElementById('logoutBtn').addEventListener('click', function() {
-    localStorage.removeItem('adminToken');
+    sessionStorage.removeItem('adminToken');
     window.location.href = '/admin.html';
   });
 
@@ -55,7 +55,7 @@
       ]);
 
       if (statsRes.status === 401 || ordersRes.status === 401) {
-        localStorage.removeItem('adminToken');
+        sessionStorage.removeItem('adminToken');
         window.location.href = '/admin.html';
         return;
       }
