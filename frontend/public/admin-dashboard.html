@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard — ShopNex</title>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/index.html" class="logo">Shop<span>Nex</span></a>
+  <div class="nav-links">
+    <a href="/index.html">Home</a>
+    <span style="color:#777;" id="adminUser"></span>
+    <button class="logout-btn" id="logoutBtn">Logout</button>
+  </div>
+</nav>
+
+<section class="admin-page">
+  <div class="admin-header">
+    <div>
+      <h1>Orders Dashboard</h1>
+      <p style="color:#777;">Manage and view all customer orders</p>
+    </div>
+  </div>
+
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-num" id="statOrders">—</div><div class="stat-label">Total Orders</div></div>
+    <div class="stat-card"><div class="stat-num" id="statRevenue">—</div><div class="stat-label">Total Revenue</div></div>
+    <div class="stat-card"><div class="stat-num" id="statProducts">—</div><div class="stat-label">Products</div></div>
+  </div>
+
+  <div id="ordersContainer">
+    <p style="text-align:center; color:#777; padding:40px;">Loading orders...</p>
+  </div>
+</section>
+
+<footer><p>&copy; 2025 ShopNex. All rights reserved.</p></footer>
+
+<script>
+  const token = localStorage.getItem('adminToken');
+  if (!token) { window.location.href = '/admin.html'; }
+
+  document.getElementById('logoutBtn').addEventListener('click', function() {
+    localStorage.removeItem('adminToken');
+    window.location.href = '/admin.html';
+  });
+
+  async function loadDashboard() {
+    const headers = { 'Authorization': 'Bearer ' + token };
+    try {
+      const [statsRes, ordersRes] = await Promise.all([
+        fetch('/api/admin/stats', { headers }),
+        fetch('/api/admin/orders', { headers })
+      ]);
+
+      if (statsRes.status === 401 || ordersRes.status === 401) {
+        localStorage.removeItem('adminToken');
+        window.location.href = '/admin.html';
+        return;
+      }
+
+      const stats = await statsRes.json();
+      const orders = await ordersRes.json();
+
+      document.getElementById('statOrders').textContent = stats.totalOrders;
+      document.getElementById('statRevenue').textContent = '$' + stats.totalRevenue.toFixed(2);
+      document.getElementById('statProducts').textContent = stats.totalProducts;
+
+      const container = document.getElementById('ordersContainer');
+      if (orders.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#777; padding:40px;">No orders yet.</p>';
+        return;
+      }
+
+      let rows = '';
+      orders.forEach(o => {
+        rows += `<tr>
+          <td>#${o.id}</td>
+          <td>${o.customer_name}</td>
+          <td>${o.customer_email}</td>
+          <td>${o.customer_address}</td>
+          <td>$${parseFloat(o.total_amount).toFixed(2)}</td>
+          <td>${o.items || '—'}</td>
+          <td><span class="badge badge-${o.payment_status}">${o.payment_status}</span></td>
+          <td>${new Date(o.created_at).toLocaleDateString()}</td>
+        </tr>`;
+      });
+
+      container.innerHTML = `
+        <table class="orders-table">
+          <thead>
+            <tr><th>ID</th><th>Customer</th><th>Email</th><th>Address</th><th>Total</th><th>Items</th><th>Status</th><th>Date</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    } catch(err) {
+      document.getElementById('ordersContainer').innerHTML = '<p style="text-align:center; color:red; padding:40px;">Error loading orders.</p>';
+    }
+  }
+
+  loadDashboard();
+</script>
+</body>
+</html>

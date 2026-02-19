@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Products — ShopNex</title>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/index.html" class="logo">Shop<span>Nex</span></a>
+  <div class="nav-links">
+    <a href="/index.html">Home</a>
+    <a href="/products.html" class="active">Products</a>
+    <a href="/cart.html">Cart <span class="cart-badge" id="cartCount">0</span></a>
+  </div>
+</nav>
+
+<section class="products-page">
+  <div class="page-header">
+    <h1>All Products</h1>
+    <p>Discover our curated collection</p>
+  </div>
+  <div class="filters">
+    <button class="filter-btn active" data-cat="all">All</button>
+    <button class="filter-btn" data-cat="electronics">Electronics</button>
+    <button class="filter-btn" data-cat="accessories">Accessories</button>
+    <button class="filter-btn" data-cat="lifestyle">Lifestyle</button>
+  </div>
+  <div class="product-grid" id="productGrid"></div>
+</section>
+
+<footer><p>&copy; 2025 ShopNex. All rights reserved.</p></footer>
+
+<script src="/js/cart.js"></script>
+<script>
+  let allProducts = [];
+
+  function renderProducts(products) {
+    const grid = document.getElementById('productGrid');
+    grid.innerHTML = '';
+    products.forEach(p => {
+      grid.innerHTML += `
+        <div class="product-card">
+          <a href="/product-detail.html?id=${p.id}">
+            <img src="${p.image_url}" alt="${p.name}"/>
+            <div class="card-body">
+              <span class="tag">${p.category}</span>
+              <h3>${p.name}</h3>
+              <p class="price">$${p.price.toFixed(2)}</p>
+            </div>
+          </a>
+          <button class="btn-cart" onclick="addToCart(${p.id}, '${p.name}', ${p.price}, '${p.image_url}')">Add to Cart</button>
+        </div>`;
+    });
+  }
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      const cat = this.dataset.cat;
+      renderProducts(cat === 'all' ? allProducts : allProducts.filter(p => p.category === cat));
+    });
+  });
+
+  fetch('/api/products')
+    .then(r => r.json())
+    .then(products => { allProducts = products; renderProducts(products); });
+
+  updateCartBadge();
+</script>
+</body>
+</html>

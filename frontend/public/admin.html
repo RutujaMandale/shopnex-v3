@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login — ShopNex</title>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/index.html" class="logo">Shop<span>Nex</span></a>
+  <div class="nav-links"><a href="/index.html">Home</a></div>
+</nav>
+
+<section class="admin-login-page">
+  <div class="login-box">
+    <h2>Admin Login</h2>
+    <p>This page is restricted to administrators.</p>
+    <p class="error-msg" id="loginError" style="display:none"></p>
+    <input type="text" id="username" placeholder="Username"/>
+    <input type="password" id="password" placeholder="Password"/>
+    <button class="btn-primary" id="loginBtn" style="width:100%">Login</button>
+  </div>
+</section>
+
+<footer><p>&copy; 2025 ShopNex. All rights reserved.</p></footer>
+
+<script>
+  document.getElementById('loginBtn').addEventListener('click', async function() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('loginError');
+
+    if (!username || !password) { errorEl.textContent = 'Please enter username and password.'; errorEl.style.display = 'block'; return; }
+
+    this.textContent = 'Logging in...';
+    this.disabled = true;
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem('adminToken', data.token);
+        window.location.href = '/admin-dashboard.html';
+      } else {
+        errorEl.textContent = 'Invalid username or password.';
+        errorEl.style.display = 'block';
+        this.textContent = 'Login';
+        this.disabled = false;
+      }
+    } catch(err) {
+      errorEl.textContent = 'Login failed. Please try again.';
+      errorEl.style.display = 'block';
+      this.textContent = 'Login';
+      this.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

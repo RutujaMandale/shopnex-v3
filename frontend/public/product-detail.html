@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Product — ShopNex</title>
+  <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/index.html" class="logo">Shop<span>Nex</span></a>
+  <div class="nav-links">
+    <a href="/index.html">Home</a>
+    <a href="/products.html">Products</a>
+    <a href="/cart.html">Cart <span class="cart-badge" id="cartCount">0</span></a>
+  </div>
+</nav>
+
+<section class="detail-page" id="detailContent">
+  <p style="text-align:center; padding:60px; color:#777;">Loading product...</p>
+</section>
+
+<footer><p>&copy; 2025 ShopNex. All rights reserved.</p></footer>
+
+<script src="/js/cart.js"></script>
+<script>
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (!id) { window.location.href = '/products.html'; }
+
+  fetch('/api/products?category=all')
+    .then(r => r.json())
+    .then(products => {
+      const p = products.find(x => x.id == id);
+      if (!p) { window.location.href = '/products.html'; return; }
+
+      document.title = p.name + ' — ShopNex';
+      document.getElementById('detailContent').innerHTML = `
+        <a href="/products.html" class="back-link">← Back to Products</a>
+        <div class="detail-grid">
+          <div class="detail-img"><img src="${p.image_url}" alt="${p.name}"/></div>
+          <div class="detail-info">
+            <span class="tag">${p.category}</span>
+            <h1>${p.name}</h1>
+            <p class="detail-price">$${p.price.toFixed(2)}</p>
+            <div class="rating">⭐⭐⭐⭐⭐ <span>(${p.reviews} reviews)</span></div>
+            <p class="description">${p.description}</p>
+            <div class="qty-row">
+              <label>Qty:</label>
+              <input type="number" id="qty" value="1" min="1" max="10"/>
+            </div>
+            <button class="btn-primary" id="addBtn">Add to Cart</button>
+            <p class="added-msg" id="addedMsg">✓ Added to cart!</p>
+          </div>
+        </div>`;
+
+      document.getElementById('addBtn').addEventListener('click', function() {
+        const qty = parseInt(document.getElementById('qty').value);
+        addToCart(p.id, p.name, p.price, p.image_url, qty);
+        const msg = document.getElementById('addedMsg');
+        msg.classList.add('visible');
+        setTimeout(() => msg.classList.remove('visible'), 2000);
+      });
+    });
+
+  updateCartBadge();
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cart — ShopNex</title>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+<nav class="navbar">
+  <a href="/index.html" class="logo">Shop<span>Nex</span></a>
+  <div class="nav-links">
+    <a href="/index.html">Home</a>
+    <a href="/products.html">Products</a>
+    <a href="/cart.html" class="active">Cart <span class="cart-badge" id="cartCount">0</span></a>
+  </div>
+</nav>
+
+<section class="cart-page">
+  <h1>Your Cart</h1>
+  <div id="emptyCart" class="empty-cart" style="display:none">
+    <p>Your cart is empty.</p>
+    <a href="/products.html" class="btn-primary">Shop Now</a>
+  </div>
+  <div class="cart-layout" id="cartLayout">
+    <div class="cart-items" id="cartItems"></div>
+    <div class="checkout-panel">
+      <h2>Order Summary</h2>
+      <div class="summary-row"><span>Subtotal</span><span id="subtotal">$0.00</span></div>
+      <div class="summary-row"><span>Shipping</span><span>Free</span></div>
+      <div class="summary-row total"><span>Total</span><span id="total">$0.00</span></div>
+
+      <h3>Customer Details</h3>
+      <input type="text" id="custName" placeholder="Full Name"/>
+      <input type="email" id="custEmail" placeholder="Email Address"/>
+      <input type="text" id="custAddress" placeholder="Shipping Address"/>
+
+      <h3>Payment <span class="test-badge">TEST MODE</span></h3>
+      <div id="card-element"></div>
+      <p class="error-msg" id="cardErrors"></p>
+      <button class="pay-btn" id="payBtn">Pay Now</button>
+    </div>
+  </div>
+</section>
+
+<footer><p>&copy; 2025 ShopNex. All rights reserved.</p></footer>
+
+<script src="/js/cart.js"></script>
+<script>
+  const stripe = Stripe('STRIPE_PUBLISHABLE_KEY_HERE');
+  const elements = stripe.elements();
+  const cardElement = elements.create('card', {
+    style: { base: { fontSize: '16px', color: '#333', fontFamily: 'Arial, sans-serif' } }
+  });
+  cardElement.mount('#card-element');
+  cardElement.on('change', e => {
+    document.getElementById('cardErrors').textContent = e.error ? e.error.message : '';
+  });
+
+  function renderCart() {
+    const cart = getCart();
+    const cartItems = document.getElementById('cartItems');
+    const emptyCart = document.getElementById('emptyCart');
+    const cartLayout = document.getElementById('cartLayout');
+
+    if (cart.length === 0) {
+      emptyCart.style.display = 'block';
+      cartLayout.style.display = 'none';
+      return;
+    }
+
+    emptyCart.style.display = 'none';
+    cartLayout.style.display = 'grid';
+
+    let subtotal = 0;
+    cartItems.innerHTML = '';
+    cart.forEach(item => {
+      subtotal += item.price * item.qty;
+      cartItems.innerHTML += `
+        <div class="cart-item">
+          <img src="${item.image}" alt="${item.name}"/>
+          <div class="item-info">
+            <h3>${item.name}</h3>
+            <p>$${item.price.toFixed(2)} × ${item.qty}</p>
+          </div>
+          <div class="item-actions">
+            <span class="item-total">$${(item.price * item.qty).toFixed(2)}</span>
+            <button class="remove-btn" data-id="${item.id}">✕</button>
+          </div>
+        </div>`;
+    });
+
+    document.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        removeFromCart(parseInt(this.dataset.id));
+        renderCart();
+        updateCartBadge();
+      });
+    });
+
+    document.getElementById('subtotal').textContent = '$' + subtotal.toFixed(2);
+    document.getElementById('total').textContent = '$' + subtotal.toFixed(2);
+  }
+
+  document.getElementById('payBtn').addEventListener('click', async function() {
+    const name = document.getElementById('custName').value.trim();
+    const email = document.getElementById('custEmail').value.trim();
+    const address = document.getElementById('custAddress').value.trim();
+    const cart = getCart();
+
+    if (!name || !email || !address) { alert('Please fill in all customer details.'); return; }
+    if (cart.length === 0) { alert('Your cart is empty!'); return; }
+
+    const btn = document.getElementById('payBtn');
+    btn.textContent = 'Processing...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/payment/create-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart, name, email, address })
+      });
+      const data = await res.json();
+      if (!data.clientSecret) throw new Error('Payment initialization failed');
+
+      const result = await stripe.confirmCardPayment(data.clientSecret, {
+        payment_method: { card: cardElement, billing_details: { name, email } }
+      });
+
+      if (result.error) {
+        document.getElementById('cardErrors').textContent = result.error.message;
+        btn.textContent = 'Pay Now';
+        btn.disabled = false;
+      } else if (result.paymentIntent.status === 'succeeded') {
+        await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, address, cart, paymentIntentId: result.paymentIntent.id })
+        });
+        clearCart();
+        window.location.href = '/success.html';
+      }
+    } catch(err) {
+      document.getElementById('cardErrors').textContent = 'Error: ' + err.message;
+      btn.textContent = 'Pay Now';
+      btn.disabled = false;
+    }
+  });
+
+  renderCart();
+  updateCartBadge();
+</script>
+</body>
+</html>

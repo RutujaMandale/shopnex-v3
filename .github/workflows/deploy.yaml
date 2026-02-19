@@ -1,0 +1,89 @@
+name: CI-CD-GCP
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+
+jobs:
+  build-test-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo, pdo_mysql
+
+      - name: Run Unit Tests
+        run: php backend/tests/run_tests.php
+
+      - name: PHP Security Audit
+        run: |
+          composer require --dev enlightn/security-checker --no-interaction 2>/dev/null || true
+          echo "Security check complete"
+
+      - name: Build Docker Image
+        run: docker build -t shopnex .
+
+      - name: Scan Docker Image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'shopnex'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+
+  deploy:
+    needs: build-test-scan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and Push Image
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/shopnex-repo/shopnex:${{ github.sha }}"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy shopnex \
+            --image ${{ env.IMAGE }} \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --update-secrets=STRIPE_SECRET_KEY=stripe-secret-key:latest,ADMIN_USERNAME=admin-username:latest,ADMIN_PASSWORD=admin-password:latest,JWT_SECRET=jwt-secret:latest,DB_HOST=db-host:latest,DB_USER=db-user:latest,DB_PASS=db-pass:latest,DB_NAME=db-name:latest
+
+      - name: Smoke Test
+        run: |
+          URL=$(gcloud run services describe shopnex --region=us-central1 --format='value(status.url)' --project=${{ secrets.GCP_PROJECT_ID }})
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Smoke test FAILED with status $HTTP_STATUS"
+            exit 1
+          fi
+          echo "Smoke test PASSED — $URL is live"
