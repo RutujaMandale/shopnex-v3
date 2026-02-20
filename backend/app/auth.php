@@ -1,50 +1,29 @@
 <?php
 function requireAdminAuth() {
     $headers = getallheaders();
-    $auth = $headers['Authorization'] ?? '';
+    $auth = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
-    if (!preg_match('/Bearer\s+(.+)/', $auth, $matches)) {
+    if (empty($auth)) {
         http_response_code(401);
-        die(json_encode(['error' => 'Unauthorized']));
+        die(json_encode(['error' => 'Unauthorized - no token']));
     }
 
-    $token = $matches[1];
-    $secret = getenv('JWT_SECRET') ?: 'default_secret';
+    // Simple token check
+    $token = str_replace('Bearer ', '', $auth);
+    $expected = hash('sha256', (getenv('ADMIN_USERNAME') ?: 'admin') . (getenv('JWT_SECRET') ?: 'secret'));
 
-    // Simple JWT decode (header.payload.signature)
-    $parts = explode('.', $token);
-    if (count($parts) !== 3) {
+    if ($token !== $expected) {
         http_response_code(401);
-        die(json_encode(['error' => 'Invalid token']));
+        die(json_encode(['error' => 'Unauthorized - invalid token']));
     }
 
-    $payload = json_decode(base64_decode(str_replace(['-','_'], ['+','/'], $parts[1])), true);
-
-    // Verify signature
-    $expectedSig = hash_hmac('sha256', $parts[0].'.'.$parts[1], $secret, true);
-    $expectedSig = rtrim(strtr(base64_encode($expectedSig), '+/', '-_'), '=');
-
-    if (!hash_equals($expectedSig, $parts[2])) {
-        http_response_code(401);
-        die(json_encode(['error' => 'Invalid token signature']));
-    }
-
-    if (isset($payload['exp']) && $payload['exp'] < time()) {
-        http_response_code(401);
-        die(json_encode(['error' => 'Token expired']));
-    }
-
-    return $payload;
+    return true;
 }
 
 function generateJWT($payload) {
-    $secret = getenv('JWT_SECRET') ?: 'default_secret';
-    $header = base64_encode(json_encode(['alg'=>'HS256','typ'=>'JWT']));
-    $header = rtrim(strtr($header, '+/', '-_'), '=');
-    $payload = base64_encode(json_encode($payload));
-    $payload = rtrim(strtr($payload, '+/', '-_'), '=');
-    $sig = hash_hmac('sha256', $header.'.'.$payload, $secret, true);
-    $sig = rtrim(strtr(base64_encode($sig), '+/', '-_'), '=');
-    return $header.'.'.$payload.'.'.$sig;
+    $username = getenv('ADMIN_USERNAME') ?: 'admin';
+    $secret = getenv('JWT_SECRET') ?: 'secret';
+    // Return simple hash token
+    return hash('sha256', $username . $secret);
 }
 ?>
