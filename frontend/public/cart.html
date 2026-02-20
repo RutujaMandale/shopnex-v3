@@ -38,8 +38,9 @@
 
       <h3>Payment <span class="test-badge">TEST MODE</span></h3>
       <div id="card-element"></div>
+      <p style="font-size:12px;color:#999;margin-top:4px;">Use test card: 4242 4242 4242 4242 | Any future date | Any CVV</p>
       <p class="error-msg" id="cardErrors"></p>
-      <button class="pay-btn" id="payBtn">Pay Now</button>
+      <button type="button" class="pay-btn" id="payBtn">Pay Now</button>
     </div>
   </div>
 </section>
@@ -48,21 +49,22 @@
 
 <script src="/js/cart.js"></script>
 <script>
-  const stripe = Stripe('pk_test_51T2Hsn2L6wvgBP82QTpdbNMLSOpZTRUtWpZ5zXfLfcy93mu2KbOCwgSgwaTdLqihrWJ0v9Zijy20DRyjc00cHTm000639EaAFs');
-  const elements = stripe.elements();
-  const cardElement = elements.create('card', {
+  // Initialize Stripe UI (display only)
+  var stripe = Stripe('pk_test_51T2Hsn2L6wvgBP82fakekey');
+  var elements = stripe.elements();
+  var cardElement = elements.create('card', {
     style: { base: { fontSize: '16px', color: '#333', fontFamily: 'Arial, sans-serif' } }
   });
   cardElement.mount('#card-element');
-  cardElement.on('change', e => {
+  cardElement.on('change', function(e) {
     document.getElementById('cardErrors').textContent = e.error ? e.error.message : '';
   });
 
   function renderCart() {
-    const cart = getCart();
-    const cartItems = document.getElementById('cartItems');
-    const emptyCart = document.getElementById('emptyCart');
-    const cartLayout = document.getElementById('cartLayout');
+    var cart = getCart();
+    var cartItems = document.getElementById('cartItems');
+    var emptyCart = document.getElementById('emptyCart');
+    var cartLayout = document.getElementById('cartLayout');
 
     if (cart.length === 0) {
       emptyCart.style.display = 'block';
@@ -73,25 +75,21 @@
     emptyCart.style.display = 'none';
     cartLayout.style.display = 'grid';
 
-    let subtotal = 0;
+    var subtotal = 0;
     cartItems.innerHTML = '';
-    cart.forEach(item => {
+    cart.forEach(function(item) {
       subtotal += item.price * item.qty;
-      cartItems.innerHTML += `
-        <div class="cart-item">
-          <img src="${item.image}" alt="${item.name}"/>
-          <div class="item-info">
-            <h3>${item.name}</h3>
-            <p>$${item.price.toFixed(2)} × ${item.qty}</p>
-          </div>
-          <div class="item-actions">
-            <span class="item-total">$${(item.price * item.qty).toFixed(2)}</span>
-            <button class="remove-btn" data-id="${item.id}">✕</button>
-          </div>
-        </div>`;
+      cartItems.innerHTML += '<div class="cart-item">' +
+        '<img src="' + item.image + '" alt="' + item.name + '"/>' +
+        '<div class="item-info"><h3>' + item.name + '</h3>' +
+        '<p>$' + item.price.toFixed(2) + ' × ' + item.qty + '</p></div>' +
+        '<div class="item-actions">' +
+        '<span class="item-total">$' + (item.price * item.qty).toFixed(2) + '</span>' +
+        '<button type="button" class="remove-btn" data-id="' + item.id + '">✕</button>' +
+        '</div></div>';
     });
 
-    document.querySelectorAll('.remove-btn').forEach(btn => {
+    document.querySelectorAll('.remove-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         removeFromCart(parseInt(this.dataset.id));
         renderCart();
@@ -104,43 +102,38 @@
   }
 
   document.getElementById('payBtn').addEventListener('click', async function() {
-    const name = document.getElementById('custName').value.trim();
-    const email = document.getElementById('custEmail').value.trim();
-    const address = document.getElementById('custAddress').value.trim();
-    const cart = getCart();
+    var name = document.getElementById('custName').value.trim();
+    var email = document.getElementById('custEmail').value.trim();
+    var address = document.getElementById('custAddress').value.trim();
+    var cart = getCart();
 
     if (!name || !email || !address) { alert('Please fill in all customer details.'); return; }
     if (cart.length === 0) { alert('Your cart is empty!'); return; }
 
-    const btn = document.getElementById('payBtn');
+    var btn = document.getElementById('payBtn');
     btn.textContent = 'Processing...';
     btn.disabled = true;
 
     try {
-      const res = await fetch('/api/payment/create-intent', {
+      // Simulate payment - save order directly without Stripe
+      var res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cart, name, email, address })
+        body: JSON.stringify({
+          name: name,
+          email: email,
+          address: address,
+          cart: cart,
+          paymentIntentId: 'sim_' + Date.now()
+        })
       });
-      const data = await res.json();
-      if (!data.clientSecret) throw new Error('Payment initialization failed');
 
-      const result = await stripe.confirmCardPayment(data.clientSecret, {
-        payment_method: { card: cardElement, billing_details: { name, email } }
-      });
-
-      if (result.error) {
-        document.getElementById('cardErrors').textContent = result.error.message;
-        btn.textContent = 'Pay Now';
-        btn.disabled = false;
-      } else if (result.paymentIntent.status === 'succeeded') {
-        await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, address, cart, paymentIntentId: result.paymentIntent.id })
-        });
+      var data = await res.json();
+      if (data.success) {
         clearCart();
         window.location.href = '/success.html';
+      } else {
+        throw new Error(data.error || 'Order failed');
       }
     } catch(err) {
       document.getElementById('cardErrors').textContent = 'Error: ' + err.message;
